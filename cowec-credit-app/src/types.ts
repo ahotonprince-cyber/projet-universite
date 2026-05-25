@@ -14,6 +14,7 @@ export interface Utilisateur {
   profession?: string;
   dateNaissance?: string;
   avatar?: string;
+  score_credit?: number;
   scoreCredit?: number;
 }
 

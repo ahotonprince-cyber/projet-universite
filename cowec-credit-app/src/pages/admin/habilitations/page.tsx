@@ -316,11 +316,11 @@ export default function HabilitationsPage({ initialRoleFilter = 'all' }: Habilit
                     <>
                       <td className="px-5 py-3">
                         <span className={`text-xs font-bold px-2 py-1 rounded-full ${
-                          (user.scoreCredit || 0) >= 80 ? 'bg-green-50 text-green-700' :
-                          (user.scoreCredit || 0) >= 60 ? 'bg-yellow-50 text-yellow-700' :
+                          (user.score_credit ?? user.scoreCredit ?? 0) >= 80 ? 'bg-green-50 text-green-700' :
+                          (user.score_credit ?? user.scoreCredit ?? 0) >= 60 ? 'bg-yellow-50 text-yellow-700' :
                           'bg-red-50 text-red-700'
                         }`}>
-                          {user.scoreCredit || 'N/A'}/100
+                          {user.score_credit ?? user.scoreCredit ?? 'N/A'}/100
                         </span>
                       </td>
                       <td className="px-5 py-3 text-sm text-gray-500 max-w-xs truncate">
