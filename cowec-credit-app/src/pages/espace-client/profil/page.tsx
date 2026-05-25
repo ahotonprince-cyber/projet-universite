@@ -324,8 +324,9 @@ export default function ProfilClientPage() {
     );
   }
 
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
   const avatarSrc = profile.avatar
-    ? profile.avatar.startsWith('/uploads') ? `http://localhost:5000${profile.avatar}` : profile.avatar
+    ? profile.avatar.startsWith('/uploads') ? `${apiUrl}${profile.avatar}` : profile.avatar
     : `https://ui-avatars.com/api/?background=f97316&color=fff&name=${encodeURIComponent(profile.prenom + '+' + profile.nom)}&size=128`;
 
   const allValid = documents.length > 0 && documents.every(d => d.statut === 'valide');
@@ -352,7 +353,7 @@ export default function ProfilClientPage() {
       </div>
 
       {/* ── CARD PROFIL RÉSUMÉ ── */}
-      <div className="bg-white border rounded-xl p-6 flex flex-wrap items-center gap-5 shadow-sm">
+      <div className="bg-white border rounded-xl p-6 flex flex-col sm:flex-row sm:flex-wrap items-center gap-5 shadow-sm">
 
         {/* Avatar cliquable */}
         <div className="relative group cursor-pointer" onClick={() => avatarInputRef.current?.click()}>
