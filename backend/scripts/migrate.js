@@ -52,5 +52,6 @@ async function migrate() {
 
 migrate().catch(err => {
     console.error('❌ Migration échouée:', err.message);
-    process.exit(1);
+    // Ne pas bloquer le démarrage du serveur
+    process.exit(0);
 });
