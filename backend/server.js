@@ -20,17 +20,19 @@ app.use(compression());
 // CORS configuration
 const allowedOrigins = [
     'http://localhost:5173',
+    'http://localhost:5174',
     'http://127.0.0.1:5173',
     process.env.FRONTEND_URL,
 ].filter(Boolean);
 
-// Autorise tout le réseau local 192.168.x.x en développement
 const localNetworkRegex = /^http:\/\/192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$/;
+const vercelRegex = /^https:\/\/[\w-]+\.vercel\.app$/;
 
 app.use(cors({
     origin: (origin, callback) => {
         if (!origin) return callback(null, true);
         if (allowedOrigins.includes(origin)) return callback(null, true);
+        if (vercelRegex.test(origin)) return callback(null, true);
         if (process.env.NODE_ENV !== 'production' && localNetworkRegex.test(origin)) {
             return callback(null, true);
         }
