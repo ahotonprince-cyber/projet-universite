@@ -47,7 +47,7 @@ app.use(cors({
 if (process.env.NODE_ENV === 'production') {
     const limiter = rateLimit({
         windowMs: 15 * 60 * 1000,
-        max: 100,
+        max: 500,
         message: { error: 'Trop de requêtes, veuillez réessayer plus tard.' },
         standardHeaders: true,
         legacyHeaders: false,
