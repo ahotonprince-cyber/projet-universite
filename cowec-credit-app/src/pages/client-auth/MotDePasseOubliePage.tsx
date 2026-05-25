@@ -5,15 +5,34 @@ export default function MotDePasseOubliePage() {
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: { preventDefault(): void }) => {
     e.preventDefault();
     if (!email) return;
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    setError('');
+
+    try {
+      const response = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Une erreur est survenue');
+      }
+
+      // Succès : afficher le message de confirmation
       setSent(true);
-    }, 1200);
+    } catch (err: any) {
+      setError(err.message || 'Impossible de contacter le serveur');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -32,6 +51,12 @@ export default function MotDePasseOubliePage() {
         <div className="bg-white rounded-2xl p-8 border border-gray-100">
           {!sent ? (
             <form onSubmit={handleSubmit} className="space-y-5">
+              {error && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+                  <i className="ri-error-warning-line mr-1" />
+                  {error}
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Adresse email</label>
                 <div className="relative">
@@ -70,7 +95,7 @@ export default function MotDePasseOubliePage() {
               </p>
               <div className="p-3 bg-orange-50 rounded-lg text-sm text-orange-700 mb-4">
                 <i className="ri-information-line mr-1" />
-                Le lien expire dans 30 minutes.
+                Le lien expire dans 24 heures.
               </div>
             </div>
           )}

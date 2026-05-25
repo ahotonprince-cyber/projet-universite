@@ -1,70 +1,129 @@
-import { useState } from 'react';
-import { clients as initialClients, Client } from '@/mocks/clients';
+import { useState, useEffect } from 'react';
 import ClientModal from './components/ClientModal';
 
-const scoreColor = (score: number) => {
+interface Client {
+  id: number;
+  nom: string;
+  prenom: string;
+  email: string;           // ✅ AJOUTÉ
+  telephone: string;
+  adresse: string;
+  profession: string;
+  statut: 'actif' | 'inactif';
+  dateCreation?: string;
+  avatar?: string;
+  scoreCredit?: number;
+}
+
+const scoreColor = (score: number = 0) => {
   if (score >= 80) return 'text-green-600 bg-green-50';
   if (score >= 60) return 'text-yellow-600 bg-yellow-50';
   return 'text-red-600 bg-red-50';
 };
 
 export default function ClientsPage() {
-  const [clientList, setClientList] = useState<Client[]>(initialClients);
+  const [clientList, setClientList] = useState<Client[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterStatut, setFilterStatut] = useState<'tous' | 'actif' | 'inactif'>('tous');
   const [modalOpen, setModalOpen] = useState(false);
   const [editClient, setEditClient] = useState<Client | null>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
-  const showToast = (msg: string) => {
+  const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
   };
 
+  const fetchClients = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      const response = await fetch('/api/admin/clients', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('Erreur chargement clients');
+      const data = await response.json();
+      setClientList(data.clients || []);
+    } catch (err) {
+      console.error(err);
+      showToast('Erreur lors du chargement', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchClients();
+  }, []);
+
   const filtered = clientList.filter((c) => {
     const matchSearch =
-      `${c.prenom} ${c.nom} ${c.telephone} ${c.profession}`.toLowerCase().includes(search.toLowerCase());
+      `${c.prenom} ${c.nom} ${c.email} ${c.telephone} ${c.profession}`.toLowerCase().includes(search.toLowerCase());
     const matchStatut = filterStatut === 'tous' || c.statut === filterStatut;
     return matchSearch && matchStatut;
   });
 
-  const handleSave = (data: Omit<Client, 'id' | 'dateCreation' | 'avatar' | 'scoreCredit'>) => {
-    if (editClient) {
-      setClientList((prev) =>
-        prev.map((c) => (c.id === editClient.id ? { ...c, ...data } : c))
-      );
-      showToast('Client modifié avec succès');
-    } else {
-      const newClient: Client = {
-        ...data,
-        id: `CLI${String(clientList.length + 1).padStart(3, '0')}`,
-        dateCreation: new Date().toISOString().split('T')[0],
-        avatar: `https://readdy.ai/api/search-image?query=professional%20african%20person%20portrait%20smiling%20confident%20business%20attire%20neutral%20background%20studio%20photography&width=80&height=80&seq=new${clientList.length}&orientation=squarish`,
-        scoreCredit: Math.floor(Math.random() * 40) + 50,
-      };
-      setClientList((prev) => [newClient, ...prev]);
-      showToast('Client ajouté avec succès');
+  // ✅ TYPE CORRIGÉ
+  const handleSave = async (data: Omit<Client, 'id' | 'dateCreation' | 'avatar' | 'scoreCredit'> & { password?: string }) => {
+    try {
+      const token = localStorage.getItem('token');
+      const method = editClient ? 'PUT' : 'POST';
+      const url = editClient
+        ? `/api/admin/clients/${editClient.id}`
+        : '/api/admin/clients';
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(data)
+      });
+      if (!response.ok) throw new Error('Erreur sauvegarde');
+      showToast(editClient ? 'Client modifié' : 'Client ajouté');
+      setModalOpen(false);
+      setEditClient(null);
+      fetchClients();
+    } catch (err) {
+      console.error(err);
+      showToast('Erreur lors de la sauvegarde', 'error');
     }
-    setModalOpen(false);
-    setEditClient(null);
   };
 
-  const handleDelete = (id: string) => {
-    setClientList((prev) => prev.filter((c) => c.id !== id));
-    setDeleteConfirm(null);
-    showToast('Client supprimé');
+  const handleDelete = async (id: number) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/admin/clients/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('Erreur suppression');
+      showToast('Client supprimé');
+      setDeleteConfirm(null);
+      fetchClients();
+    } catch (err) {
+      console.error(err);
+      showToast('Erreur lors de la suppression', 'error');
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
       {/* Toast */}
       {toast && (
-        <div className="fixed top-20 right-6 z-50 bg-gray-900 text-white px-4 py-3 rounded-xl text-sm font-medium shadow-lg animate-fade-in">
+        <div className="fixed top-20 right-6 z-50 bg-gray-900 text-white px-4 py-3 rounded-xl text-sm font-medium shadow-lg">
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 flex items-center justify-center">
-              <i className="ri-checkbox-circle-line text-green-400" />
-            </div>
+            <i className="ri-checkbox-circle-line text-green-400" />
             {toast}
           </div>
         </div>
@@ -105,9 +164,7 @@ export default function ClientsPage() {
           onClick={() => { setEditClient(null); setModalOpen(true); }}
           className="flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-400 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:from-orange-600 hover:to-orange-500 transition-all cursor-pointer whitespace-nowrap"
         >
-          <div className="w-4 h-4 flex items-center justify-center">
-            <i className="ri-user-add-line" />
-          </div>
+          <i className="ri-user-add-line" />
           Nouveau client
         </button>
       </div>
@@ -135,6 +192,7 @@ export default function ClientsPage() {
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100">
                 <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Client</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Email</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Téléphone</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider hidden md:table-cell">Adresse</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider hidden lg:table-cell">Profession</th>
@@ -149,22 +207,23 @@ export default function ClientsPage() {
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-3">
                       <img
-                        src={client.avatar}
+                        src={client.avatar || 'https://ui-avatars.com/api/?background=orange&color=fff&name=' + encodeURIComponent(client.prenom + ' ' + client.nom)}
                         alt={client.nom}
                         className="w-10 h-10 rounded-full object-cover border-2 border-orange-100 flex-shrink-0"
                       />
                       <div>
                         <p className="text-sm font-semibold text-gray-900">{client.prenom} {client.nom}</p>
-                        <p className="text-xs text-gray-400">{client.id}</p>
+                        <p className="text-xs text-gray-400">#{client.id}</p>
                       </div>
                     </div>
                   </td>
+                  <td className="px-5 py-3 text-sm text-blue-600">{client.email}</td>
                   <td className="px-5 py-3 text-sm text-gray-600">{client.telephone}</td>
                   <td className="px-5 py-3 text-sm text-gray-600 hidden md:table-cell max-w-xs truncate">{client.adresse}</td>
                   <td className="px-5 py-3 text-sm text-gray-600 hidden lg:table-cell">{client.profession}</td>
                   <td className="px-5 py-3">
                     <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${scoreColor(client.scoreCredit)}`}>
-                      {client.scoreCredit}/100
+                      {client.scoreCredit || 'N/A'}/100
                     </span>
                   </td>
                   <td className="px-5 py-3">
@@ -196,7 +255,7 @@ export default function ClientsPage() {
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-5 py-12 text-center text-gray-400 text-sm">
+                  <td colSpan={8} className="px-5 py-12 text-center text-gray-400 text-sm">
                     <div className="w-10 h-10 flex items-center justify-center mx-auto mb-3">
                       <i className="ri-user-search-line text-3xl text-gray-300" />
                     </div>

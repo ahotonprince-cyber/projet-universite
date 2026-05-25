@@ -1,12 +1,18 @@
 import { useState, useEffect } from 'react';
-import { Credit } from '@/mocks/credits';
-import { clients } from '@/mocks/clients';
+
+interface Client {
+  id: number;
+  nom: string;
+  prenom: string;
+  scoreCredit?: number;
+  statut: string;
+}
 
 interface CreditModalProps {
   open: boolean;
-  credit?: Credit | null;
+  credit?: any | null;
   onClose: () => void;
-  onSave: (data: Partial<Credit>) => void;
+  onSave: (data: any) => void;
 }
 
 export default function CreditModal({ open, credit, onClose, onSave }: CreditModalProps) {
@@ -17,15 +23,40 @@ export default function CreditModal({ open, credit, onClose, onSave }: CreditMod
     duree: '',
     objet: '',
   });
+  const [clients, setClients] = useState<Client[]>([]);
+  const [loadingClients, setLoadingClients] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const fetchClients = async () => {
+      setLoadingClients(true);
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        // ✅ URL CORRIGÉE
+        const response = await fetch('/api/admin/clients', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) throw new Error('Erreur chargement clients');
+        const data = await response.json();
+        setClients(data.clients || []);
+      } catch (err) {
+        console.error('Erreur:', err);
+      } finally {
+        setLoadingClients(false);
+      }
+    };
+    fetchClients();
+  }, [open]);
 
   useEffect(() => {
     if (credit) {
       setForm({
-        clientId: credit.clientId,
-        montant: String(credit.montant),
-        tauxInteret: String(credit.tauxInteret),
-        duree: String(credit.duree),
-        objet: credit.objet,
+        clientId: credit.client_id?.toString() || '',
+        montant: String(credit.montant_accorde || ''),
+        tauxInteret: String(credit.taux_annuel || ''),
+        duree: String(credit.duree_mois || ''),
+        objet: credit.objet || '',
       });
     } else {
       setForm({ clientId: '', montant: '', tauxInteret: '', duree: '', objet: '' });
@@ -34,7 +65,7 @@ export default function CreditModal({ open, credit, onClose, onSave }: CreditMod
 
   if (!open) return null;
 
-  const selectedClient = clients.find((c) => c.id === form.clientId);
+  const selectedClient = clients.find((c) => c.id === parseInt(form.clientId));
   const montant = parseFloat(form.montant) || 0;
   const taux = parseFloat(form.tauxInteret) || 0;
   const duree = parseInt(form.duree) || 0;
@@ -42,19 +73,12 @@ export default function CreditModal({ open, credit, onClose, onSave }: CreditMod
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const client = clients.find((c) => c.id === form.clientId);
     onSave({
-      clientId: form.clientId,
-      clientNom: client?.nom || '',
-      clientPrenom: client?.prenom || '',
-      montant: parseFloat(form.montant),
-      tauxInteret: parseFloat(form.tauxInteret),
-      duree: parseInt(form.duree),
+      client_id: parseInt(form.clientId),
+      montant: montant,
+      duree_mois: duree,
+      taux_annuel: taux,
       objet: form.objet,
-      statut: 'en_attente',
-      montantRembourse: 0,
-      dateDebut: '',
-      dateFin: '',
     });
   };
 
@@ -77,6 +101,7 @@ export default function CreditModal({ open, credit, onClose, onSave }: CreditMod
               value={form.clientId}
               onChange={(e) => setForm({ ...form, clientId: e.target.value })}
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-400 transition-colors bg-white"
+              disabled={loadingClients}
             >
               <option value="">Sélectionner un client</option>
               {clients.filter((c) => c.statut === 'actif').map((c) => (
@@ -84,7 +109,7 @@ export default function CreditModal({ open, credit, onClose, onSave }: CreditMod
               ))}
             </select>
             {selectedClient && (
-              <p className="text-xs text-orange-500 mt-1">Score de crédit : {selectedClient.scoreCredit}/100</p>
+              <p className="text-xs text-orange-500 mt-1">Score de crédit : {selectedClient.scoreCredit || 'N/A'}/100</p>
             )}
           </div>
           <div>
@@ -139,7 +164,6 @@ export default function CreditModal({ open, credit, onClose, onSave }: CreditMod
             />
           </div>
 
-          {/* Simulation */}
           {montant > 0 && duree > 0 && (
             <div className="bg-orange-50 rounded-xl p-4 border border-orange-100">
               <p className="text-xs font-semibold text-orange-700 mb-2">Simulation de remboursement</p>

@@ -1,19 +1,137 @@
-import { useState } from 'react';
-import { echeancesClient } from '@/mocks/clientCredits';
+import { useState, useEffect, useMemo } from 'react';
+
+interface Echeance {
+  id: number;
+  credit_id: number;
+  credit_objet: string;
+  numero_credit: string;
+  date_echeance: string;
+  montant_echeance: number;
+  date_paiement?: string;
+  statut: 'paye' | 'en_retard' | 'a_venir';
+}
 
 export default function RemboursementsClientPage() {
-  const [payModal, setPayModal] = useState<string | null>(null);
+  const [echeances, setEcheances] = useState<Echeance[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [payModal, setPayModal] = useState<number | null>(null);
   const [method, setMethod] = useState('mtn');
   const [paying, setPaying] = useState(false);
-  const [paid, setPaid] = useState<string[]>([]);
 
-  const handlePay = () => {
+  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+
+  const [filterStatut, setFilterStatut] = useState<string>('all');
+  const [filterCredit, setFilterCredit] = useState<string>('all');
+  const [page, setPage] = useState(1);
+  const PER_PAGE = 10;
+
+  // Liste unique des crédits pour le dropdown
+  const credits = useMemo(() => {
+    const seen = new Set<string>();
+    return echeances.filter(e => {
+      if (seen.has(e.numero_credit)) return false;
+      seen.add(e.numero_credit);
+      return true;
+    });
+  }, [echeances]);
+
+  // Echeances filtrées
+  const filtered = useMemo(() => {
+    let result = [...echeances];
+    if (filterStatut !== 'all') result = result.filter(e => e.statut === filterStatut);
+    if (filterCredit !== 'all') result = result.filter(e => e.numero_credit === filterCredit);
+    return result;
+  }, [echeances, filterStatut, filterCredit]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
+  const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+
+  // Reset page quand les filtres changent
+  const handleFilterStatut = (s: string) => { setFilterStatut(s); setPage(1); };
+  const handleFilterCredit = (c: string) => { setFilterCredit(c); setPage(1); };
+
+  const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const fetchEcheances = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const response = await fetch('/api/client/echeances', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!response.ok) throw new Error('Erreur chargement échéances');
+
+      const data = await response.json();
+      setEcheances(data.echeances || []);
+    } catch (err) {
+      console.error(err);
+      setError('Impossible de charger vos échéances');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchEcheances();
+  }, []);
+
+  // ESC pour fermer modal
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPayModal(null);
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, []);
+
+  const handlePay = async () => {
+    if (!payModal) return;
+
     setPaying(true);
-    setTimeout(() => {
-      setPaying(false);
-      if (payModal) setPaid((p) => [...p, payModal]);
+
+    try {
+      const token = localStorage.getItem('token');
+      const echeance = echeances.find(e => e.id === payModal);
+
+      if (!echeance) throw new Error('Échéance introuvable');
+
+      const response = await fetch('/api/client/paiement', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          echeance_id: payModal,
+          montant: echeance.montant_echeance,
+          mode_paiement:
+            method === 'mtn'
+              ? 'mtn_money'
+              : method === 'moov'
+              ? 'moov_money'
+              : 'wave',
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) throw new Error(data.error || 'Erreur paiement');
+
+      showToast('Paiement effectué avec succès', 'success');
       setPayModal(null);
-    }, 1500);
+      fetchEcheances();
+    } catch (err: any) {
+      showToast(err.message, 'error');
+    } finally {
+      setPaying(false);
+    }
   };
 
   const statutStyle: Record<string, string> = {
@@ -21,114 +139,228 @@ export default function RemboursementsClientPage() {
     en_retard: 'bg-red-100 text-red-600',
     a_venir: 'bg-orange-100 text-orange-700',
   };
-  const statutLabel: Record<string, string> = { paye: 'Payé', en_retard: 'En retard', a_venir: 'À venir' };
+
+  const statutLabel: Record<string, string> = {
+    paye: 'Payé',
+    en_retard: 'En retard',
+    a_venir: 'À venir',
+  };
+
+  const stats = {
+    paye: echeances.filter(e => e.statut === 'paye').length,
+    en_retard: echeances.filter(e => e.statut === 'en_retard').length,
+    a_venir: echeances.filter(e => e.statut === 'a_venir').length,
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+        <p className="text-red-600">{error}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-4 px-4 py-2 bg-red-500 text-white rounded-lg"
+        >
+          Réessayer
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
+
+      {/* TOAST */}
+      {toast && (
+        <div
+          className={`fixed top-20 right-6 z-50 px-4 py-3 rounded-xl text-white shadow-lg text-sm font-medium ${
+            toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+          }`}
+        >
+          {toast.msg}
+        </div>
+      )}
+
       <div>
         <h2 className="text-xl font-bold text-gray-900">Mes remboursements</h2>
-        <p className="text-sm text-gray-500">Historique et échéances de paiement</p>
+        <p className="text-sm text-gray-500">Historique et échéances</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {/* STATS CLIQUABLES */}
+      <div className="grid grid-cols-3 gap-4">
         {[
-          { label: 'Payées', count: echeancesClient.filter(e => e.statut === 'paye').length, color: 'text-green-600', bg: 'bg-green-50', icon: 'ri-check-double-line' },
-          { label: 'En retard', count: echeancesClient.filter(e => e.statut === 'en_retard').length, color: 'text-red-600', bg: 'bg-red-50', icon: 'ri-alarm-warning-line' },
-          { label: 'À venir', count: echeancesClient.filter(e => e.statut === 'a_venir').length, color: 'text-orange-600', bg: 'bg-orange-50', icon: 'ri-calendar-line' },
-        ].map((s) => (
-          <div key={s.label} className="bg-white rounded-xl border border-gray-100 p-4 flex items-center gap-4">
-            <div className={`w-10 h-10 ${s.bg} rounded-lg flex items-center justify-center`}>
-              <i className={`${s.icon} ${s.color} text-lg`} />
-            </div>
-            <div>
-              <p className="text-xs text-gray-400">{s.label}</p>
-              <p className={`text-2xl font-bold ${s.color}`}>{s.count}</p>
-            </div>
-          </div>
+          { key: 'paye',      label: 'Payées',     count: stats.paye,      color: 'text-green-600',  ring: 'ring-green-400'  },
+          { key: 'en_retard', label: 'En retard',  count: stats.en_retard, color: 'text-red-600',    ring: 'ring-red-400'    },
+          { key: 'a_venir',   label: 'À venir',    count: stats.a_venir,   color: 'text-orange-600', ring: 'ring-orange-400' },
+        ].map(s => (
+          <button
+            key={s.key}
+            onClick={() => handleFilterStatut(filterStatut === s.key ? 'all' : s.key)}
+            className={`bg-white p-4 rounded-xl border text-left transition ${
+              filterStatut === s.key ? `ring-2 ${s.ring}` : 'hover:bg-gray-50'
+            }`}
+          >
+            <p className="text-xs text-gray-400">{s.label}</p>
+            <p className={`text-2xl font-bold ${s.color}`}>{s.count}</p>
+          </button>
         ))}
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-        <div className="p-5 border-b border-gray-100">
-          <h3 className="font-semibold text-gray-800">Toutes les échéances</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                {['Crédit', 'Échéance', 'Montant', 'Date paiement', 'Statut', 'Action'].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {echeancesClient.map((e) => {
-                const isPaid = paid.includes(e.id) || e.statut === 'paye';
-                const statut = isPaid ? 'paye' : e.statut;
-                return (
-                  <tr key={e.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3">
-                      <p className="text-sm font-medium text-gray-800 truncate max-w-[160px]">{e.creditObjet}</p>
-                      <p className="text-xs text-gray-400">{e.creditId}</p>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{e.dateEcheance}</td>
-                    <td className="px-4 py-3 text-sm font-semibold text-gray-800 whitespace-nowrap">{e.montant.toLocaleString()} FCFA</td>
-                    <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">{e.datePaiement || '—'}</td>
-                    <td className="px-4 py-3">
-                      <span className={`text-xs px-2.5 py-1 rounded-full font-medium whitespace-nowrap ${statutStyle[statut]}`}>
-                        {statutLabel[statut]}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      {!isPaid && (e.statut === 'a_venir' || e.statut === 'en_retard') && (
-                        <button
-                          onClick={() => setPayModal(e.id)}
-                          className="px-3 py-1.5 bg-orange-500 text-white text-xs rounded-lg font-medium hover:bg-orange-600 transition-colors cursor-pointer whitespace-nowrap"
-                        >
-                          Payer
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+      {/* FILTRES */}
+      <div className="flex flex-wrap gap-3 items-center">
+        <select
+          value={filterCredit}
+          onChange={e => handleFilterCredit(e.target.value)}
+          className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
+        >
+          <option value="all">Tous les crédits</option>
+          {credits.map(c => (
+            <option key={c.numero_credit} value={c.numero_credit}>
+              {c.credit_objet} — {c.numero_credit}
+            </option>
+          ))}
+        </select>
+
+        {(filterStatut !== 'all' || filterCredit !== 'all') && (
+          <button
+            onClick={() => { handleFilterStatut('all'); handleFilterCredit('all'); }}
+            className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1"
+          >
+            <i className="ri-close-circle-line" /> Réinitialiser
+          </button>
+        )}
+
+        <span className="ml-auto text-xs text-gray-400">
+          {filtered.length} échéance{filtered.length > 1 ? 's' : ''}
+        </span>
       </div>
 
+      {/* TABLE */}
+      <div className="bg-white rounded-xl border overflow-hidden">
+        <table className="w-full">
+          <thead className="bg-gray-50">
+            <tr>
+              {['Crédit', 'Échéance', 'Montant', 'Statut', 'Action'].map(h => (
+                <th key={h} className="text-left text-xs p-3 text-gray-500">{h}</th>
+              ))}
+            </tr>
+          </thead>
+
+          <tbody>
+            {paginated.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="p-8 text-center text-gray-400 text-sm">
+                  Aucune échéance trouvée
+                </td>
+              </tr>
+            ) : paginated.map(e => (
+              <tr key={e.id} className="border-t hover:bg-gray-50">
+                <td className="p-3">
+                  <p className="text-sm font-medium">{e.credit_objet}</p>
+                  <p className="text-xs text-gray-400">{e.numero_credit}</p>
+                </td>
+
+                <td className="p-3 text-sm">
+                  {new Date(e.date_echeance).toLocaleDateString('fr-FR')}
+                </td>
+
+                <td className="p-3 font-semibold">
+                  {(e.montant_echeance || 0).toLocaleString()} FCFA
+                </td>
+
+                <td className="p-3">
+                  <span className={`text-xs px-2 py-1 rounded ${statutStyle[e.statut]}`}>
+                    {statutLabel[e.statut]}
+                  </span>
+                </td>
+
+                <td className="p-3">
+                  {e.statut !== 'paye' && (
+                    <button
+                      onClick={() => setPayModal(e.id)}
+                      className="px-3 py-1 bg-orange-500 text-white text-xs rounded-lg"
+                    >
+                      Payer
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {/* PAGINATION */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t bg-gray-50">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="px-3 py-1 text-sm border rounded-lg disabled:opacity-40 hover:bg-white transition"
+            >
+              ← Précédent
+            </button>
+
+            <span className="text-xs text-gray-500">
+              Page {page} / {totalPages}
+            </span>
+
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="px-3 py-1 text-sm border rounded-lg disabled:opacity-40 hover:bg-white transition"
+            >
+              Suivant →
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* MODAL */}
       {payModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setPayModal(null)}>
-          <div className="bg-white rounded-2xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
-            <h3 className="font-bold text-gray-900 text-lg mb-4">Effectuer un paiement</h3>
-            <div className="p-3 bg-orange-50 rounded-lg mb-4 text-center">
-              <p className="text-xs text-gray-500">Montant à payer</p>
-              <p className="text-2xl font-bold text-orange-600">
-                {echeancesClient.find(e => e.id === payModal)?.montant.toLocaleString()} FCFA
-              </p>
-            </div>
-            <p className="text-sm font-medium text-gray-700 mb-3">Choisir le mode de paiement</p>
-            <div className="space-y-2 mb-5">
-              {[
-                { id: 'mtn', label: 'MTN Mobile Money', icon: 'ri-smartphone-line', color: 'text-yellow-600' },
-                { id: 'moov', label: 'Moov Money', icon: 'ri-smartphone-line', color: 'text-orange-500' },
-                { id: 'wave', label: 'Wave', icon: 'ri-bank-card-line', color: 'text-blue-500' },
-              ].map((m) => (
-                <label key={m.id} className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-all ${method === m.id ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-orange-200'}`}>
-                  <input type="radio" name="method" value={m.id} checked={method === m.id} onChange={() => setMethod(m.id)} className="accent-orange-500" />
-                  <div className="w-5 h-5 flex items-center justify-center">
-                    <i className={`${m.icon} ${m.color}`} />
-                  </div>
-                  <span className="text-sm font-medium text-gray-700">{m.label}</span>
+        <div
+          className="fixed inset-0 bg-black/40 flex items-center justify-center p-4"
+          onClick={() => setPayModal(null)}
+        >
+          <div
+            className="bg-white p-6 rounded-xl w-full max-w-sm"
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 className="font-bold mb-4">Paiement</h3>
+
+            <p className="mb-3 text-sm">
+              Montant :{' '}
+              <strong>
+                {(echeances.find(e => e.id === payModal)?.montant_echeance || 0).toLocaleString()} FCFA
+              </strong>
+            </p>
+
+            <div className="space-y-2 mb-4">
+              {['mtn', 'moov', 'wave'].map(m => (
+                <label key={m} className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    checked={method === m}
+                    onChange={() => setMethod(m)}
+                  />
+                  {m.toUpperCase()}
                 </label>
               ))}
             </div>
-            <div className="flex gap-3">
-              <button onClick={() => setPayModal(null)} className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium cursor-pointer whitespace-nowrap hover:bg-gray-50">Annuler</button>
-              <button onClick={handlePay} disabled={paying} className="flex-1 py-2.5 bg-gradient-to-r from-orange-500 to-orange-400 text-white rounded-lg text-sm font-semibold cursor-pointer whitespace-nowrap hover:from-orange-600 hover:to-orange-500 disabled:opacity-70 flex items-center justify-center gap-2">
-                {paying ? <><i className="ri-loader-4-line animate-spin" /> Traitement...</> : <><i className="ri-check-line" /> Confirmer</>}
-              </button>
-            </div>
+
+            <button
+              onClick={handlePay}
+              disabled={paying}
+              className="w-full bg-orange-500 text-white py-2 rounded-lg"
+            >
+              {paying ? 'Traitement...' : 'Confirmer'}
+            </button>
           </div>
         </div>
       )}

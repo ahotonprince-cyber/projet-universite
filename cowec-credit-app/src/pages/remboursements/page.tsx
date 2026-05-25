@@ -1,6 +1,19 @@
-import { useState } from 'react';
-import { remboursements as initialData, Remboursement } from '@/mocks/remboursements';
+import { useState, useEffect } from 'react';
 import PaiementModal from './components/PaiementModal';
+
+interface Remboursement {
+  id: number;
+  credit_id: number;
+  client_nom: string;
+  client_prenom: string;
+  numero_credit: string;
+  date_echeance: string;
+  montant_echeance: number;
+  reste_a_payer: number;
+  statut: 'paye' | 'en_retard' | 'a_venir';
+  montant_paye?: number;
+  date_paiement?: string;
+}
 
 const statutConfig = {
   paye: { label: 'Payé', cls: 'bg-green-50 text-green-700', icon: 'ri-checkbox-circle-line' },
@@ -9,46 +22,82 @@ const statutConfig = {
 };
 
 export default function RemboursementsPage() {
-  const [data, setData] = useState<Remboursement[]>(initialData);
+  const [data, setData] = useState<Remboursement[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filterStatut, setFilterStatut] = useState<'tous' | 'paye' | 'en_retard' | 'a_venir'>('tous');
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedRmb, setSelectedRmb] = useState<Remboursement | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
-  const showToast = (msg: string) => {
+  const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
   };
 
+  const fetchRemboursements = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      // ✅ URL CORRIGÉE
+      const response = await fetch('/api/admin/remboursements', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('Erreur chargement remboursements');
+      const result = await response.json();
+      setData(result.remboursements || []);
+    } catch (err) {
+      console.error(err);
+      showToast('Erreur lors du chargement', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRemboursements();
+  }, []);
+
+  const handlePaiement = async (id: number, montant: number, date: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      // ✅ URL CORRIGÉE
+      const response = await fetch('/api/admin/remboursements/payer', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ remboursement_id: id, montant, date_paiement: date })
+      });
+      if (!response.ok) throw new Error('Erreur paiement');
+      showToast('Paiement enregistré avec succès');
+      setModalOpen(false);
+      setSelectedRmb(null);
+      fetchRemboursements();
+    } catch (err) {
+      console.error(err);
+      showToast('Erreur lors du paiement', 'error');
+    }
+  };
+
   const filtered = data.filter((r) => {
-    const matchSearch = `${r.clientPrenom} ${r.clientNom} ${r.creditId}`.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = `${r.client_prenom} ${r.client_nom} ${r.numero_credit}`.toLowerCase().includes(search.toLowerCase());
     const matchStatut = filterStatut === 'tous' || r.statut === filterStatut;
     return matchSearch && matchStatut;
   });
 
-  const handlePaiement = (id: string, montant: number, date: string) => {
-    setData((prev) =>
-      prev.map((r) => {
-        if (r.id !== id) return r;
-        const newReste = Math.max(0, r.resteAPayer - montant);
-        return {
-          ...r,
-          montantPaye: montant,
-          datePaiement: date,
-          resteAPayer: newReste,
-          statut: newReste === 0 ? 'paye' : r.statut,
-        };
-      })
-    );
-    setModalOpen(false);
-    setSelectedRmb(null);
-    showToast('Paiement enregistré avec succès');
-  };
+  const totalPaye = data.filter((r) => r.statut === 'paye').reduce((s, r) => s + (r.montant_paye || 0), 0);
+  const totalRetard = data.filter((r) => r.statut === 'en_retard').reduce((s, r) => s + r.montant_echeance, 0);
+  const totalAVenir = data.filter((r) => r.statut === 'a_venir').reduce((s, r) => s + r.montant_echeance, 0);
 
-  const totalPaye = data.filter((r) => r.statut === 'paye').reduce((s, r) => s + r.montantPaye, 0);
-  const totalRetard = data.filter((r) => r.statut === 'en_retard').reduce((s, r) => s + r.montantEcheance, 0);
-  const totalAVenir = data.filter((r) => r.statut === 'a_venir').reduce((s, r) => s + r.montantEcheance, 0);
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -56,9 +105,7 @@ export default function RemboursementsPage() {
       {toast && (
         <div className="fixed top-20 right-6 z-50 bg-gray-900 text-white px-4 py-3 rounded-xl text-sm font-medium shadow-lg">
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 flex items-center justify-center">
-              <i className="ri-checkbox-circle-line text-green-400" />
-            </div>
+            <i className="ri-checkbox-circle-line text-green-400" />
             {toast}
           </div>
         </div>
@@ -145,20 +192,20 @@ export default function RemboursementsPage() {
                 return (
                   <tr key={r.id} className={`hover:bg-orange-50/20 transition-colors ${r.statut === 'en_retard' ? 'bg-red-50/20' : ''}`}>
                     <td className="px-5 py-3">
-                      <p className="text-sm font-semibold text-gray-900">{r.clientPrenom} {r.clientNom}</p>
+                      <p className="text-sm font-semibold text-gray-900">{r.client_prenom} {r.client_nom}</p>
                     </td>
                     <td className="px-5 py-3">
-                      <span className="text-xs font-mono text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{r.creditId}</span>
+                      <span className="text-xs font-mono text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{r.numero_credit}</span>
                     </td>
                     <td className="px-5 py-3 text-sm text-gray-600">
-                      {r.dateEcheance ? new Date(r.dateEcheance).toLocaleDateString('fr-FR') : '-'}
+                      {r.date_echeance ? new Date(r.date_echeance).toLocaleDateString('fr-FR') : '-'}
                     </td>
                     <td className="px-5 py-3 text-sm font-semibold text-gray-900">
-                      {r.montantEcheance.toLocaleString('fr-FR')} F
+                      {r.montant_echeance.toLocaleString('fr-FR')} F
                     </td>
                     <td className="px-5 py-3">
-                      <span className={`text-sm font-bold ${r.resteAPayer > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                        {r.resteAPayer.toLocaleString('fr-FR')} F
+                      <span className={`text-sm font-bold ${r.reste_a_payer > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                        {r.reste_a_payer.toLocaleString('fr-FR')} F
                       </span>
                     </td>
                     <td className="px-5 py-3">
