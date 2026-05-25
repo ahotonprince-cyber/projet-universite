@@ -244,7 +244,8 @@ export default function RemboursementsClientPage() {
 
       {/* TABLE */}
       <div className="bg-white rounded-xl border overflow-hidden">
-        <table className="w-full">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[480px]">
           <thead className="bg-gray-50">
             <tr>
               {['Crédit', 'Échéance', 'Montant', 'Statut', 'Action'].map(h => (
@@ -295,6 +296,7 @@ export default function RemboursementsClientPage() {
             ))}
           </tbody>
         </table>
+        </div>
 
         {/* PAGINATION */}
         {totalPages > 1 && (
