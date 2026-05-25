@@ -49,7 +49,7 @@ import AdminSupportPage from "../pages/admin/support/page";
 import AdminDepotsPage from "../pages/admin/depots/page";
 import AdminCotisationsTontinePage from "../pages/admin/cotisations-tontine/page";
 import AdminFicheClientPage from "../pages/admin/fiche-client/page";
-import CompteOperationsPage from "../pages/admin/comptes/[id]/operations";
+import CompteOperationsPage from "../pages/admin/comptes/detail/operations";
 
 const routes: RouteObject[] = [
   { path: "/", element: <Navigate to="/client/connexion" replace /> },
