@@ -29,15 +29,8 @@ const authController = {
                 return res.status(500).json({ error: 'Erreur création utilisateur' });
             }
 
-            if (process.env.NODE_ENV !== 'production') {
-                // En développement : activer le compte directement sans vérification email
-                await UserModel.markEmailVerified(userId);
-            } else {
-                // En production : envoyer le lien de vérification
-                const emailToken = crypto.randomBytes(32).toString('hex');
-                await UserModel.setEmailToken(userId, emailToken);
-                sendVerificationEmail(email, user.prenom || user.nom, emailToken).catch(() => {});
-            }
+            // Validation automatique — pas besoin d'email de vérification
+            await UserModel.markEmailVerified(userId);
 
             res.status(201).json({
                 success: true,
@@ -68,13 +61,7 @@ const authController = {
                 return res.status(401).json({ error: 'Email ou mot de passe incorrect' });
             }
 
-            // Bloquer si email non vérifié (désactivé en développement)
-            if (!user.email_verifie && process.env.NODE_ENV === 'production') {
-                return res.status(403).json({
-                    error: 'Veuillez vérifier votre adresse email avant de vous connecter. Consultez votre boîte mail.',
-                    code: 'EMAIL_NOT_VERIFIED'
-                });
-            }
+            // Vérification email désactivée — validation automatique à l'inscription
 
             // Vérifier le statut avant de tester le mot de passe
             if (user.statut === 'bloque') {
