@@ -39,7 +39,9 @@ async function migrate() {
             await conn.query(sql);
             console.log(`✅ ${file} executé`);
         } catch (e) {
-            if (e.code === 'ER_TABLE_EXISTS_ERROR' || e.errno === 1050) {
+            // Table déjà existante ou colonne déjà ajoutée = migration déjà appliquée
+            if (e.code === 'ER_TABLE_EXISTS_ERROR' || e.errno === 1050 ||
+                e.code === 'ER_DUP_FIELDNAME'     || e.errno === 1060) {
                 console.log(`⏭  ${file} déjà appliqué`);
             } else {
                 console.error(`❌ Erreur ${file}:`, e.message);

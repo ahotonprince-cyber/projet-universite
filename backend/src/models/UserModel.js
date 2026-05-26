@@ -181,11 +181,23 @@ class UserModel {
     }
 
     static async bloquerCompte(id) {
-        // Sauvegarder le statut actuel avant de bloquer
-        await query(
-            "UPDATE utilisateurs SET statut_avant_blocage = statut, statut = 'bloque', date_blocage = NOW(), tentatives_connexion = 0 WHERE id = ?",
-            [id]
-        );
+        try {
+            // Sauvegarder le statut actuel avant de bloquer
+            await query(
+                "UPDATE utilisateurs SET statut_avant_blocage = statut, statut = 'bloque', date_blocage = NOW(), tentatives_connexion = 0 WHERE id = ?",
+                [id]
+            );
+        } catch (e) {
+            // Fallback si la colonne statut_avant_blocage n'existe pas encore (migration en attente)
+            if (e.code === 'ER_BAD_FIELD_ERROR') {
+                await query(
+                    "UPDATE utilisateurs SET statut = 'bloque', date_blocage = NOW(), tentatives_connexion = 0 WHERE id = ?",
+                    [id]
+                );
+            } else {
+                throw e;
+            }
+        }
     }
 
     static async setDeblocageToken(id, token) {
