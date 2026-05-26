@@ -83,12 +83,37 @@ app.get('/health', (req, res) => {
 
 // Test email endpoint (diagnostic — à supprimer après vérification)
 app.get('/health/email-test', async (req, res) => {
-    const { sendEmail } = require('./src/services/emailService');
+    const https = require('https');
     const to = req.query.to || process.env.SMTP_USER;
-    const provider = process.env.BREVO_API_KEY ? 'Brevo' : process.env.RESEND_API_KEY ? 'Resend' : 'nodemailer';
-    const ok = await sendEmail(to, `Test email COWEC (${provider})`, `<h2>${provider} fonctionne depuis Railway !</h2><p>Envoyé à : ${to}</p>`);
-    if (ok) res.json({ success: true, provider, message: `Email envoyé via ${provider} à ${to}` });
-    else res.status(500).json({ success: false, provider, error: 'Échec envoi — vérifiez les logs Railway' });
+    const apiKey = process.env.BREVO_API_KEY;
+    if (!apiKey) return res.status(500).json({ error: 'BREVO_API_KEY manquante dans Railway' });
+    const from = process.env.EMAIL_FROM || 'ahotonprince@gmail.com';
+    const body = JSON.stringify({
+        sender: { name: 'COWEC Test', email: from },
+        to: [{ email: to }],
+        subject: 'Test Brevo depuis Railway',
+        htmlContent: '<h2>Brevo fonctionne !</h2>'
+    });
+    const request = https.request({
+        hostname: 'api.brevo.com',
+        path: '/v3/smtp/email',
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'api-key': apiKey, 'Content-Length': Buffer.byteLength(body) }
+    }, response => {
+        let data = '';
+        response.on('data', chunk => data += chunk);
+        response.on('end', () => {
+            const status = response.statusCode;
+            if (status >= 200 && status < 300) {
+                res.json({ success: true, message: `Email envoyé à ${to}`, from, brevoResponse: JSON.parse(data) });
+            } else {
+                res.status(500).json({ success: false, httpStatus: status, brevoError: data, from, to, apiKeyStart: apiKey.substring(0, 10) + '...' });
+            }
+        });
+    });
+    request.on('error', err => res.status(500).json({ success: false, error: err.message }));
+    request.write(body);
+    request.end();
 });
 
 // 404 handler
