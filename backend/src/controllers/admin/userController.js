@@ -99,8 +99,8 @@ const userController = {
 
             res.json({ success: true });
         } catch (error) {
-            console.error('❌ toggleStatut error:', error);
-            res.status(500).json({ error: 'Erreur changement statut' });
+            console.error('❌ toggleStatut error:', error.code, error.message);
+            res.status(500).json({ error: 'Erreur changement statut: ' + error.message });
         }
     },
     
