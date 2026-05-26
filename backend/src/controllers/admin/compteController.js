@@ -101,8 +101,8 @@ const compteController = {
             
             res.json({ operations });
         } catch (error) {
-            console.error('❌ getOperations error:', error);
-            res.status(500).json({ error: 'Erreur chargement opérations' });
+            console.error('❌ getOperations error:', error.code, error.message);
+            res.status(500).json({ error: 'Erreur chargement opérations: ' + error.message });
         }
     }
 };
