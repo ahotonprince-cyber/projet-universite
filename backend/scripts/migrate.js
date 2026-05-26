@@ -24,6 +24,7 @@ async function migrate() {
         'migration_tontine_cycles.sql',
         'migration_support_tickets.sql',
         'migration_statut_avant_blocage.sql',
+        'migration_statut_utilisateur.sql',
     ];
 
     for (const file of files) {
