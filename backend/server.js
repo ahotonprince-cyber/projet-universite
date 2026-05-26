@@ -83,26 +83,12 @@ app.get('/health', (req, res) => {
 
 // Test email endpoint (diagnostic — à supprimer après vérification)
 app.get('/health/email-test', async (req, res) => {
+    const { sendEmail } = require('./src/services/emailService');
     const to = req.query.to || process.env.SMTP_USER;
-    try {
-        if (process.env.RESEND_API_KEY) {
-            const { Resend } = require('resend');
-            const resend = new Resend(process.env.RESEND_API_KEY);
-            const from = process.env.EMAIL_FROM_ADDRESS || 'COWEC Microfinance <onboarding@resend.dev>';
-            const { data, error } = await resend.emails.send({
-                from,
-                to,
-                subject: 'Test Resend depuis Railway',
-                html: '<h2>Resend fonctionne depuis Railway !</h2><p>Les emails de déblocage fonctionneront.</p>'
-            });
-            if (error) throw new Error(error.message);
-            res.json({ success: true, message: `Email envoyé via Resend à ${to}`, id: data.id });
-        } else {
-            res.status(500).json({ success: false, error: 'RESEND_API_KEY non configurée sur Railway' });
-        }
-    } catch (err) {
-        res.status(500).json({ success: false, error: err.message });
-    }
+    const provider = process.env.BREVO_API_KEY ? 'Brevo' : process.env.RESEND_API_KEY ? 'Resend' : 'nodemailer';
+    const ok = await sendEmail(to, `Test email COWEC (${provider})`, `<h2>${provider} fonctionne depuis Railway !</h2><p>Envoyé à : ${to}</p>`);
+    if (ok) res.json({ success: true, provider, message: `Email envoyé via ${provider} à ${to}` });
+    else res.status(500).json({ success: false, provider, error: 'Échec envoi — vérifiez les logs Railway' });
 });
 
 // 404 handler

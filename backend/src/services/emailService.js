@@ -1,12 +1,11 @@
-const { Resend } = require('resend');
+const https = require('https');
 const nodemailer = require('nodemailer');
 
-// Utilise Resend si la clé API est définie, sinon fallback nodemailer (local)
-const useResend = !!process.env.RESEND_API_KEY;
+// Priorité : Brevo > Resend > nodemailer (local)
+const useBrevo  = !!process.env.BREVO_API_KEY;
+const useResend = !useBrevo && !!process.env.RESEND_API_KEY;
 
-const resend = useResend ? new Resend(process.env.RESEND_API_KEY) : null;
-
-const nodemailerTransport = !useResend ? nodemailer.createTransport({
+const nodemailerTransport = (!useBrevo && !useResend) ? nodemailer.createTransport({
     host: process.env.SMTP_HOST,
     port: parseInt(process.env.SMTP_PORT),
     secure: false,
@@ -15,12 +14,45 @@ const nodemailerTransport = !useResend ? nodemailer.createTransport({
     tls: { rejectUnauthorized: false }
 }) : null;
 
-const FROM_ADDRESS = process.env.EMAIL_FROM_ADDRESS || 'COWEC Microfinance <onboarding@resend.dev>';
+const sendViaBrevo = (to, subject, html) => new Promise((resolve, reject) => {
+    const from = process.env.EMAIL_FROM || process.env.SMTP_USER || 'ahotonprince@gmail.com';
+    const body = JSON.stringify({
+        sender: { name: 'COWEC Microfinance', email: from },
+        to: [{ email: to }],
+        subject,
+        htmlContent: html
+    });
+    const req = https.request({
+        hostname: 'api.brevo.com',
+        path: '/v3/smtp/email',
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'api-key': process.env.BREVO_API_KEY,
+            'Content-Length': Buffer.byteLength(body)
+        }
+    }, res => {
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => {
+            if (res.statusCode >= 200 && res.statusCode < 300) resolve(JSON.parse(data));
+            else reject(new Error(`Brevo API ${res.statusCode}: ${data}`));
+        });
+    });
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+});
 
 const sendEmail = async (to, subject, html) => {
     try {
-        if (useResend) {
-            const { error } = await resend.emails.send({ from: FROM_ADDRESS, to, subject, html });
+        if (useBrevo) {
+            await sendViaBrevo(to, subject, html);
+        } else if (useResend) {
+            const { Resend } = require('resend');
+            const resend = new Resend(process.env.RESEND_API_KEY);
+            const from = process.env.EMAIL_FROM_ADDRESS || 'COWEC Microfinance <onboarding@resend.dev>';
+            const { error } = await resend.emails.send({ from, to, subject, html });
             if (error) throw new Error(error.message);
         } else {
             await nodemailerTransport.sendMail({
@@ -68,7 +100,7 @@ const sendVerificationEmail = async (email, prenom, token) => {
             </div>
             <div style="padding: 30px; background-color: #f9f9f9;">
                 <p>Bonjour <strong>${prenom}</strong>,</p>
-                <p>Merci de vous être inscrit sur COWEC. Veuillez confirmer votre adresse email :</p>
+                <p>Merci de vous être inscrit sur COWEC. Confirmez votre adresse email :</p>
                 <p style="text-align: center; margin: 30px 0;">
                     <a href="${verifyUrl}" style="background-color: #27ae60; color: white; padding: 14px 28px;
                        text-decoration: none; border-radius: 4px; font-size: 16px;">
@@ -91,18 +123,14 @@ const sendDeblocageEmail = async (email, prenom, token) => {
             </div>
             <div style="padding: 30px; background-color: #f9f9f9;">
                 <p>Bonjour <strong>${prenom}</strong>,</p>
-                <p>
-                    Votre compte a été bloqué suite à plusieurs tentatives de connexion échouées.
-                    Cliquez sur le bouton ci-dessous pour le <strong>débloquer</strong> :
-                </p>
+                <p>Votre compte a été bloqué suite à plusieurs tentatives échouées. Cliquez pour le <strong>débloquer</strong> :</p>
                 <p style="text-align: center; margin: 30px 0;">
                     <a href="${deblocageUrl}" style="background-color: #e67e22; color: white; padding: 14px 28px;
                        text-decoration: none; border-radius: 4px; font-size: 16px; font-weight: bold;">
                         🔓 Débloquer mon compte
                     </a>
                 </p>
-                <p>Ou copiez ce lien dans votre navigateur :</p>
-                <p style="word-break: break-all; color: #555; font-size: 13px;">${deblocageUrl}</p>
+                <p>Ou copiez ce lien : <span style="word-break: break-all; color: #555; font-size: 13px;">${deblocageUrl}</span></p>
                 <p style="color: #e74c3c;"><strong>Ce lien expire dans 24 heures.</strong></p>
             </div>
         </div>
@@ -118,14 +146,9 @@ const sendCompteBloque = async (email, prenom) => {
             </div>
             <div style="padding: 30px; background-color: #f9f9f9;">
                 <p>Bonjour <strong>${prenom}</strong>,</p>
-                <p>
-                    Votre compte COWEC a été <strong>bloqué automatiquement</strong> suite à
-                    <strong>3 tentatives de connexion échouées</strong>.
-                </p>
+                <p>Votre compte COWEC a été <strong>bloqué automatiquement</strong> après <strong>3 tentatives échouées</strong>.</p>
                 <p>Vérifiez votre boîte mail pour le lien de déblocage envoyé séparément.</p>
-                <p style="color: #888; font-size: 12px;">
-                    Date : ${new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Porto-Novo' })}
-                </p>
+                <p style="color: #888; font-size: 12px;">Date : ${new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Porto-Novo' })}</p>
             </div>
         </div>
     `;
@@ -166,7 +189,7 @@ const sendCompteRejete = async (email, prenom, motif) => {
                 ${motif ? `<div style="background-color: #fdf2f2; border-left: 4px solid #e74c3c; padding: 12px 16px; margin: 16px 0;">
                     <p style="margin: 0; color: #c0392b;"><strong>Motif :</strong> ${motif}</p>
                 </div>` : ''}
-                <p>Contactez notre support pour plus d'informations : <a href="mailto:support@cowec.com">support@cowec.com</a></p>
+                <p>Contactez notre support : <a href="mailto:support@cowec.com">support@cowec.com</a></p>
             </div>
         </div>
     `;
