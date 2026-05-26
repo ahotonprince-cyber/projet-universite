@@ -89,12 +89,13 @@ class CompteModel {
 
     // ✅ NOUVELLE MÉTHODE : Récupérer les opérations d'un compte
     static async getOperations(compteId, limit = 50) {
+        const safeLimit = parseInt(limit) || 50;
         return await query(
-            `SELECT * FROM operation 
-             WHERE compte_id = ? 
-             ORDER BY date_operation DESC 
-             LIMIT ?`,
-            [compteId, limit]
+            `SELECT * FROM operation
+             WHERE compte_id = ?
+             ORDER BY date_operation DESC
+             LIMIT ${safeLimit}`,
+            [compteId]
         );
     }
 }
