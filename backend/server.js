@@ -83,38 +83,12 @@ app.get('/health', (req, res) => {
 
 // Test email endpoint (diagnostic — à supprimer après vérification)
 app.get('/health/email-test', async (req, res) => {
-    const nodemailer = require('nodemailer');
+    const { sendEmail } = require('./src/services/emailService');
     const to = req.query.to || process.env.BREVO_LOGIN || process.env.SMTP_USER;
-    const hasBrevo = !!process.env.BREVO_SMTP_KEY;
-    const config = hasBrevo ? {
-        host: 'smtp-relay.brevo.com',
-        port: 587,
-        secure: false,
-        auth: { user: process.env.BREVO_LOGIN, pass: process.env.BREVO_SMTP_KEY }
-    } : {
-        host: process.env.SMTP_HOST, port: parseInt(process.env.SMTP_PORT),
-        secure: false, requireTLS: true,
-        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-        tls: { rejectUnauthorized: false }
-    };
-    const transport = nodemailer.createTransport(config);
-    try {
-        await transport.verify();
-        const info = await transport.sendMail({
-            from: `"COWEC Test" <${config.auth.user}>`,
-            to, subject: 'Test email COWEC Railway',
-            html: '<h2>Email envoyé avec succès !</h2>'
-        });
-        res.json({ success: true, provider: hasBrevo ? 'Brevo' : 'Gmail', to, messageId: info.messageId });
-    } catch (err) {
-        res.status(500).json({
-            success: false,
-            provider: hasBrevo ? 'Brevo' : 'Gmail',
-            error: err.message,
-            code: err.code,
-            config: { host: config.host, port: config.port, user: config.auth.user, passStart: config.auth.pass?.substring(0, 8) + '...' }
-        });
-    }
+    const provider = process.env.BREVO_SMTP_KEY ? 'Brevo API HTTPS' : 'Gmail SMTP';
+    const ok = await sendEmail(to, `Test COWEC (${provider})`, `<h2>${provider} fonctionne !</h2><p>Envoyé à : ${to}</p>`);
+    if (ok) res.json({ success: true, provider, to });
+    else res.status(500).json({ success: false, provider, error: 'Voir logs Railway' });
 });
 
 // 404 handler
