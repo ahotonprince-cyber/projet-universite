@@ -1,5 +1,6 @@
 const UserModel = require('../../models/UserModel');
 const { generateCreditNumber } = require('../../utils/generateNumber');
+const { sendCompteApprouve, sendCompteRejete } = require('../../services/emailService');
 
 const userController = {
     getAll: async (req, res) => {
@@ -67,8 +68,35 @@ const userController = {
     
     toggleStatut: async (req, res) => {
         try {
-            const { statut } = req.body;
-            await UserModel.updateStatut(req.params.id, statut);
+            const { statut, motif } = req.body;
+            const statutsValides = ['actif', 'inactif', 'bloque', 'en_attente', 'rejete'];
+            if (!statutsValides.includes(statut)) {
+                return res.status(400).json({ error: 'Statut invalide' });
+            }
+
+            const user = await UserModel.findById(req.params.id);
+            if (!user) return res.status(404).json({ error: 'Utilisateur non trouvé' });
+
+            const ancienStatut = user.statut;
+
+            // Déblocage admin : restaurer le statut d'avant le blocage (peut être en_attente)
+            if (statut === 'actif' && ancienStatut === 'bloque') {
+                await UserModel.debloquerCompte(req.params.id);
+            } else {
+                await UserModel.updateStatut(req.params.id, statut);
+            }
+
+            // Envoyer email selon la transition
+            if (ancienStatut !== statut) {
+                if (statut === 'actif' && ancienStatut === 'en_attente') {
+                    sendCompteApprouve(user.email, user.prenom || user.nom)
+                        .catch(e => console.error('[EMAIL] sendCompteApprouve:', e.message));
+                } else if (statut === 'rejete') {
+                    sendCompteRejete(user.email, user.prenom || user.nom, motif || null)
+                        .catch(e => console.error('[EMAIL] sendCompteRejete:', e.message));
+                }
+            }
+
             res.json({ success: true });
         } catch (error) {
             console.error('❌ toggleStatut error:', error);

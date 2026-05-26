@@ -6,6 +6,9 @@ interface HabilitationsPageProps {
   initialRoleFilter?: 'all' | 'admin' | 'agent' | 'client';
 }
 
+// Mode "client" = page Gestion clients (/admin/clients)
+// Mode "all/admin/agent" = page Habilitations (/admin/habilitations) — admins et agents uniquement
+
 export default function HabilitationsPage({ initialRoleFilter = 'all' }: HabilitationsPageProps) {
   const navigate = useNavigate();
   const [users, setUsers] = useState<Utilisateur[]>([]);
@@ -13,7 +16,9 @@ export default function HabilitationsPage({ initialRoleFilter = 'all' }: Habilit
   const [modalOpen, setModalOpen] = useState(false);
   const [editUser, setEditUser] = useState<Utilisateur | null>(null);
   const [search, setSearch] = useState('');
-  const [filterRole, setFilterRole] = useState<'all' | 'admin' | 'agent' | 'client'>(initialRoleFilter);
+  const [filterRole, setFilterRole] = useState<'all' | 'admin' | 'agent' | 'client'>(
+    initialRoleFilter === 'all' ? 'all' : initialRoleFilter
+  );
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const [form, setForm] = useState({
@@ -50,7 +55,12 @@ export default function HabilitationsPage({ initialRoleFilter = 'all' }: Habilit
 
       if (res.ok) {
         const data = await res.json();
-        setUsers(data.utilisateurs || []);
+        let fetchedUsers: Utilisateur[] = data.utilisateurs || [];
+        // Habilitations mode: les clients ont leur propre page dédiée
+        if (initialRoleFilter !== 'client') {
+          fetchedUsers = fetchedUsers.filter(u => u.role !== 'client');
+        }
+        setUsers(fetchedUsers);
       } else {
         showToast('Erreur chargement utilisateurs', 'error');
       }
@@ -193,9 +203,9 @@ export default function HabilitationsPage({ initialRoleFilter = 'all' }: Habilit
             {isClientFilter ? 'Gestion des clients' : 'Habilitations'}
           </h1>
           <p className="text-sm text-gray-500">
-            {isClientFilter 
+            {isClientFilter
               ? `Gérez les comptes clients (${stats.clients} au total)`
-              : `Gérez les administrateurs, agents et clients (${stats.total} au total)`}
+              : `Gérez les administrateurs et agents (${stats.total} au total)`}
           </p>
         </div>
 
@@ -217,7 +227,7 @@ export default function HabilitationsPage({ initialRoleFilter = 'all' }: Habilit
 
       {/* STATS (uniquement si vue générale) */}
       {!isClientFilter && (
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           <div className="bg-white p-4 rounded-xl shadow-sm border">
             <p className="text-sm text-gray-500">Total</p>
             <h2 className="text-2xl font-bold text-gray-800">{stats.total}</h2>
@@ -229,10 +239,6 @@ export default function HabilitationsPage({ initialRoleFilter = 'all' }: Habilit
           <div className="bg-white p-4 rounded-xl shadow-sm border">
             <p className="text-sm text-gray-500">Agents</p>
             <h2 className="text-2xl font-bold text-orange-500">{stats.agents}</h2>
-          </div>
-          <div className="bg-white p-4 rounded-xl shadow-sm border">
-            <p className="text-sm text-gray-500">Clients</p>
-            <h2 className="text-2xl font-bold text-green-500">{stats.clients}</h2>
           </div>
         </div>
       )}
@@ -259,7 +265,6 @@ export default function HabilitationsPage({ initialRoleFilter = 'all' }: Habilit
             <option value="all">Tous les rôles</option>
             <option value="admin">Administrateurs</option>
             <option value="agent">Agents</option>
-            <option value="client">Clients</option>
           </select>
         )}
       </div>
@@ -491,7 +496,7 @@ export default function HabilitationsPage({ initialRoleFilter = 'all' }: Habilit
                 >
                   <option value="admin">Administrateur</option>
                   <option value="agent">Agent</option>
-                  <option value="client">Client</option>
+                  {isClientFilter && <option value="client">Client</option>}
                 </select>
               )}
 

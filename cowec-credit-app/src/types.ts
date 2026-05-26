@@ -7,7 +7,7 @@ export interface Utilisateur {
   email: string;
   telephone: string;
   role: 'admin' | 'agent' | 'client';
-  statut: 'actif' | 'inactif' | 'bloque';
+  statut: 'actif' | 'inactif' | 'bloque' | 'en_attente' | 'rejete';
   dateCreation: string;
   // Champs spécifiques clients
   adresse?: string;
