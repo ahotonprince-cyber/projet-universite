@@ -181,8 +181,9 @@ class UserModel {
     }
 
     static async bloquerCompte(id) {
+        // Sauvegarder le statut actuel avant de bloquer
         await query(
-            "UPDATE utilisateurs SET statut = 'bloque', date_blocage = NOW(), tentatives_connexion = 0 WHERE id = ?",
+            "UPDATE utilisateurs SET statut_avant_blocage = statut, statut = 'bloque', date_blocage = NOW(), tentatives_connexion = 0 WHERE id = ?",
             [id]
         );
     }
@@ -204,8 +205,17 @@ class UserModel {
     }
 
     static async debloquerCompte(id) {
+        // Restaurer le statut d'avant le blocage (en_attente, actif, etc.)
+        // Si statut_avant_blocage est NULL (anciens comptes), on met 'actif' par défaut
         await query(
-            "UPDATE utilisateurs SET statut = 'actif', date_blocage = NULL, deblocage_token = NULL, deblocage_token_expiry = NULL, tentatives_connexion = 0 WHERE id = ?",
+            `UPDATE utilisateurs
+             SET statut = COALESCE(statut_avant_blocage, 'actif'),
+                 statut_avant_blocage = NULL,
+                 date_blocage = NULL,
+                 deblocage_token = NULL,
+                 deblocage_token_expiry = NULL,
+                 tentatives_connexion = 0
+             WHERE id = ?`,
             [id]
         );
     }

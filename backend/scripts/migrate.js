@@ -23,6 +23,7 @@ async function migrate() {
         'migration_kyc_dossiers.sql',
         'migration_tontine_cycles.sql',
         'migration_support_tickets.sql',
+        'migration_statut_avant_blocage.sql',
     ];
 
     for (const file of files) {
