@@ -72,6 +72,11 @@ export default function HabilitationsPage({ initialRoleFilter = 'all' }: Habilit
     }
   };
 
+  // Resynchroniser quand on navigue entre /admin/clients et /admin/habilitations
+  useEffect(() => {
+    setFilterRole(initialRoleFilter === 'all' ? 'all' : initialRoleFilter);
+  }, [initialRoleFilter]);
+
   useEffect(() => {
     fetchUsers();
   }, [filterRole]);
