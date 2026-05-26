@@ -55,11 +55,11 @@ const statistiqueController = {
                 }
 
                 if (op.type_operation === 'depot') {
-                    revenus[operateur].total_depot += op.montant || 0;
+                    revenus[operateur].total_depot += parseFloat(op.montant) || 0;
                 }
 
                 if (op.type_operation === 'retrait') {
-                    revenus[operateur].total_retrait += op.montant || 0;
+                    revenus[operateur].total_retrait += parseFloat(op.montant) || 0;
                 }
             });
 
