@@ -99,7 +99,7 @@ class CreditModel {
         if (filters.utilisateur_id){ sql += ' AND c.utilisateur_id = ?'; params.push(filters.utilisateur_id); }
 
         sql += ' ORDER BY c.date_demande DESC';
-        if (filters.limit) { sql += ' LIMIT ?'; params.push(filters.limit); }
+        if (filters.limit) { sql += ` LIMIT ${parseInt(filters.limit) || 50}`; }
 
         const rows = await query(sql, params);
         return rows.map(r => ({ ...r, statut: CreditModel.normalizeStatut(r.statut) }));

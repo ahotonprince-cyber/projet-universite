@@ -24,7 +24,7 @@ class SupportModel {
         if (filters.statut) { sql += ' AND st.statut = ?'; params.push(filters.statut); }
         if (filters.type)   { sql += ' AND st.type = ?';   params.push(filters.type); }
         sql += ' ORDER BY st.date_creation DESC';
-        if (filters.limit)  { sql += ' LIMIT ?'; params.push(filters.limit); }
+        if (filters.limit)  { sql += ` LIMIT ${parseInt(filters.limit) || 50}`; }
         return await query(sql, params);
     }
 

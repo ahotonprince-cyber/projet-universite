@@ -27,8 +27,9 @@ const transactionController = {
                 params.push(searchTerm, searchTerm, searchTerm);
             }
 
-            sql += ' ORDER BY o.date_operation DESC LIMIT ? OFFSET ?';
-            params.push(parseInt(limit), parseInt(offset));
+            const safeLimit  = parseInt(limit)  || 50;
+            const safeOffset = parseInt(offset) || 0;
+            sql += ` ORDER BY o.date_operation DESC LIMIT ${safeLimit} OFFSET ${safeOffset}`;
 
             const transactions = await query(sql, params);
             res.json({ transactions: transactions || [] });

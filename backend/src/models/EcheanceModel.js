@@ -47,8 +47,8 @@ class EcheanceModel {
              JOIN credit c ON e.credit_id = c.id
              WHERE c.utilisateur_id = ? AND e.statut IN ('a_venir', 'en_retard')
              ORDER BY e.date_echeance ASC
-             LIMIT ?`,
-            [userId, limit]
+             LIMIT ${parseInt(limit) || 5}`,
+            [parseInt(userId)]
         );
     }
     

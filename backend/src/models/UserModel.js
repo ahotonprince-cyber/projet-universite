@@ -94,7 +94,7 @@ class UserModel {
         }
         
         sql += ' ORDER BY date_creation DESC';
-        if (filters.limit) { sql += ' LIMIT ?'; params.push(filters.limit); }
+        if (filters.limit) { sql += ` LIMIT ${parseInt(filters.limit) || 50}`; }
         
         return await query(sql, params);
     }

@@ -25,8 +25,9 @@ const logController = {
                 params.push(searchTerm, searchTerm, searchTerm);
             }
 
-            sql += ' ORDER BY l.date_action DESC LIMIT ? OFFSET ?';
-            params.push(parseInt(limit), parseInt(offset));
+            const safeLimit  = parseInt(limit)  || 50;
+            const safeOffset = parseInt(offset) || 0;
+            sql += ` ORDER BY l.date_action DESC LIMIT ${safeLimit} OFFSET ${safeOffset}`;
 
             const logs = await query(sql, params);
             res.json({ logs: logs || [] });

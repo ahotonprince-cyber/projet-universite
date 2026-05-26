@@ -32,7 +32,7 @@ class LogsAuditModel {
         if (filters.date_fin)       { sql += ' AND l.date_action <= ?';   params.push(filters.date_fin); }
 
         sql += ' ORDER BY l.date_action DESC';
-        if (filters.limit) { sql += ' LIMIT ?'; params.push(filters.limit); }
+        if (filters.limit) { sql += ` LIMIT ${parseInt(filters.limit) || 50}`; }
 
         return await query(sql, params);
     }
