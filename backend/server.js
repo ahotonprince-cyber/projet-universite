@@ -83,38 +83,25 @@ app.get('/health', (req, res) => {
 
 // Test email endpoint (diagnostic — à supprimer après vérification)
 app.get('/health/email-test', async (req, res) => {
-    const nodemailer = require('nodemailer');
     const to = req.query.to || process.env.SMTP_USER;
-    const config = {
-        host: process.env.SMTP_HOST,
-        port: parseInt(process.env.SMTP_PORT),
-        secure: false,
-        requireTLS: true,
-        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-        tls: { rejectUnauthorized: false }
-    };
-    const transporter = nodemailer.createTransport(config);
     try {
-        await transporter.verify();
-        const info = await transporter.sendMail({
-            from: `"COWEC Test" <${process.env.SMTP_USER}>`,
-            to,
-            subject: 'Test SMTP depuis Railway',
-            html: '<h2>SMTP fonctionne depuis Railway !</h2><p>Configuration OK.</p>'
-        });
-        res.json({
-            success: true,
-            message: `Email envoyé à ${to}`,
-            messageId: info.messageId,
-            smtpConfig: { host: config.host, port: config.port, user: config.auth.user }
-        });
+        if (process.env.RESEND_API_KEY) {
+            const { Resend } = require('resend');
+            const resend = new Resend(process.env.RESEND_API_KEY);
+            const from = process.env.EMAIL_FROM_ADDRESS || 'COWEC Microfinance <onboarding@resend.dev>';
+            const { data, error } = await resend.emails.send({
+                from,
+                to,
+                subject: 'Test Resend depuis Railway',
+                html: '<h2>Resend fonctionne depuis Railway !</h2><p>Les emails de déblocage fonctionneront.</p>'
+            });
+            if (error) throw new Error(error.message);
+            res.json({ success: true, message: `Email envoyé via Resend à ${to}`, id: data.id });
+        } else {
+            res.status(500).json({ success: false, error: 'RESEND_API_KEY non configurée sur Railway' });
+        }
     } catch (err) {
-        res.status(500).json({
-            success: false,
-            error: err.message,
-            code: err.code,
-            smtpConfig: { host: config.host, port: config.port, user: config.auth.user }
-        });
+        res.status(500).json({ success: false, error: err.message });
     }
 });
 
