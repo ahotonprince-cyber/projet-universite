@@ -83,26 +83,23 @@ export default function HabilitationsPage({ initialRoleFilter = 'all' }: Habilit
     return matchSearch;
   });
 
-  const toggleStatut = async (id: number, statutActuel: string) => {
-    const nouveauStatut = statutActuel === 'actif' ? 'inactif' : 'actif';
+  const changerStatut = async (id: number, nouveauStatut: string) => {
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(`/api/admin/utilisateurs/${id}/statut`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ statut: nouveauStatut })
       });
-
       if (res.ok) {
-        showToast(`Utilisateur ${nouveauStatut === 'actif' ? 'activé' : 'désactivé'}`);
+        const labels: Record<string, string> = { actif: 'activé', inactif: 'désactivé', rejete: 'rejeté' };
+        showToast(`Compte ${labels[nouveauStatut] || nouveauStatut}`);
         fetchUsers();
+      } else {
+        showToast('Erreur lors du changement de statut', 'error');
       }
     } catch (err) {
-      console.error(err);
-      showToast('Erreur lors du changement de statut', 'error');
+      showToast('Erreur réseau', 'error');
     }
   };
 
@@ -329,31 +326,74 @@ export default function HabilitationsPage({ initialRoleFilter = 'all' }: Habilit
                     </>
                   )}
                   <td className="px-5 py-3">
-                    <button
-                      onClick={() => toggleStatut(user.id, user.statut)}
-                      className={`px-2 py-1 rounded-full text-xs font-medium transition ${
-                        user.statut === 'actif'
-                          ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                          : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                      }`}
-                    >
-                      {user.statut === 'actif' ? 'Actif' : 'Inactif'}
-                    </button>
+                    {user.statut === 'actif' && (
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">Actif</span>
+                    )}
+                    {user.statut === 'inactif' && (
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500">Inactif</span>
+                    )}
+                    {user.statut === 'en_attente' && (
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">En attente</span>
+                    )}
+                    {user.statut === 'bloque' && (
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">Bloqué</span>
+                    )}
+                    {user.statut === 'rejete' && (
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-200 text-red-800">Rejeté</span>
+                    )}
                   </td>
                   <td className="px-5 py-3">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 flex-wrap">
+                      {/* Valider un compte en attente */}
+                      {user.statut === 'en_attente' && (
+                        <>
+                          <button
+                            onClick={() => changerStatut(user.id, 'actif')}
+                            className="px-2 py-1 rounded text-xs font-medium bg-green-500 text-white hover:bg-green-600 transition"
+                            title="Valider le compte"
+                          >
+                            ✓ Valider
+                          </button>
+                          <button
+                            onClick={() => changerStatut(user.id, 'rejete')}
+                            className="px-2 py-1 rounded text-xs font-medium bg-red-500 text-white hover:bg-red-600 transition"
+                            title="Rejeter le compte"
+                          >
+                            ✗ Rejeter
+                          </button>
+                        </>
+                      )}
+                      {/* Débloquer un compte bloqué */}
+                      {user.statut === 'bloque' && (
+                        <button
+                          onClick={() => changerStatut(user.id, 'actif')}
+                          className="px-2 py-1 rounded text-xs font-medium bg-orange-500 text-white hover:bg-orange-600 transition"
+                          title="Débloquer le compte"
+                        >
+                          🔓 Débloquer
+                        </button>
+                      )}
+                      {/* Activer/Désactiver seulement pour actif/inactif */}
+                      {(user.statut === 'actif' || user.statut === 'inactif') && (
+                        <button
+                          onClick={() => changerStatut(user.id, user.statut === 'actif' ? 'inactif' : 'actif')}
+                          className={`px-2 py-1 rounded text-xs font-medium transition ${
+                            user.statut === 'actif'
+                              ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                              : 'bg-green-100 text-green-700 hover:bg-green-200'
+                          }`}
+                        >
+                          {user.statut === 'actif' ? 'Désactiver' : 'Activer'}
+                        </button>
+                      )}
+                      {/* Modifier */}
                       <button
                         onClick={() => {
                           setEditUser(user);
                           setForm({
-                            nom: user.nom,
-                            prenom: user.prenom,
-                            email: user.email,
-                            telephone: user.telephone,
-                            role: user.role,
-                            mot_de_passe: '',
-                            adresse: user.adresse || '',
-                            profession: user.profession || '',
+                            nom: user.nom, prenom: user.prenom, email: user.email,
+                            telephone: user.telephone, role: user.role, mot_de_passe: '',
+                            adresse: user.adresse || '', profession: user.profession || '',
                             dateNaissance: user.dateNaissance || ''
                           });
                           setModalOpen(true);
@@ -363,6 +403,7 @@ export default function HabilitationsPage({ initialRoleFilter = 'all' }: Habilit
                       >
                         <i className="ri-edit-line" />
                       </button>
+                      {/* Voir fiche client */}
                       {user.role === 'client' && (
                         <button
                           onClick={() => navigate(`/admin/clients/${user.id}`)}
@@ -372,6 +413,7 @@ export default function HabilitationsPage({ initialRoleFilter = 'all' }: Habilit
                           <i className="ri-eye-line" />
                         </button>
                       )}
+                      {/* Supprimer */}
                       <button
                         onClick={() => handleDelete(user.id)}
                         className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500"
