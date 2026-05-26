@@ -91,8 +91,8 @@ const authController = {
                     // Générer le token de déblocage et envoyer les deux emails
                     const deblocageToken = crypto.randomBytes(32).toString('hex');
                     await UserModel.setDeblocageToken(user.id, deblocageToken);
-                    sendCompteBloque(user.email, user.prenom || user.nom).catch(() => {});
-                    sendDeblocageEmail(user.email, user.prenom || user.nom, deblocageToken).catch(() => {});
+                    sendCompteBloque(user.email, user.prenom || user.nom).catch(e => console.error('[EMAIL] sendCompteBloque:', e.message));
+                    sendDeblocageEmail(user.email, user.prenom || user.nom, deblocageToken).catch(e => console.error('[EMAIL] sendDeblocageEmail:', e.message));
                     return res.status(401).json({
                         error: `Votre compte a été bloqué après ${MAX_TENTATIVES} tentatives échouées. Un lien de déblocage vous a été envoyé par email.`,
                         code: 'COMPTE_BLOQUE'
@@ -211,7 +211,7 @@ const authController = {
 
             const emailToken = crypto.randomBytes(32).toString('hex');
             await UserModel.setEmailToken(user.id, emailToken);
-            sendVerificationEmail(user.email, user.prenom || user.nom, emailToken).catch(() => {});
+            sendVerificationEmail(user.email, user.prenom || user.nom, emailToken).catch(e => console.error('[EMAIL] sendVerificationEmail:', e.message));
 
             res.json({ success: true, message: 'Email de vérification renvoyé.' });
 

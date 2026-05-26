@@ -4,23 +4,28 @@ const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST,
     port: parseInt(process.env.SMTP_PORT),
     secure: false,
+    requireTLS: true,
     auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS
+    },
+    tls: {
+        rejectUnauthorized: false
     }
 });
 
 const sendEmail = async (to, subject, html) => {
     try {
-        await transporter.sendMail({
-            from: process.env.EMAIL_FROM,
+        const info = await transporter.sendMail({
+            from: `"COWEC Microfinance" <${process.env.EMAIL_FROM}>`,
             to,
             subject,
             html
         });
+        console.log(`[EMAIL] Envoyé à ${to} — MessageId: ${info.messageId}`);
         return true;
     } catch (error) {
-        console.error('Email error:', error);
+        console.error(`[EMAIL] Échec envoi à ${to} — Sujet: "${subject}" — Erreur:`, error.message);
         return false;
     }
 };

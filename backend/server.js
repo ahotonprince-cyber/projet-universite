@@ -81,6 +81,43 @@ app.get('/health', (req, res) => {
     });
 });
 
+// Test email endpoint (diagnostic — à supprimer après vérification)
+app.get('/health/email-test', async (req, res) => {
+    const nodemailer = require('nodemailer');
+    const to = req.query.to || process.env.SMTP_USER;
+    const config = {
+        host: process.env.SMTP_HOST,
+        port: parseInt(process.env.SMTP_PORT),
+        secure: false,
+        requireTLS: true,
+        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+        tls: { rejectUnauthorized: false }
+    };
+    const transporter = nodemailer.createTransport(config);
+    try {
+        await transporter.verify();
+        const info = await transporter.sendMail({
+            from: `"COWEC Test" <${process.env.SMTP_USER}>`,
+            to,
+            subject: 'Test SMTP depuis Railway',
+            html: '<h2>SMTP fonctionne depuis Railway !</h2><p>Configuration OK.</p>'
+        });
+        res.json({
+            success: true,
+            message: `Email envoyé à ${to}`,
+            messageId: info.messageId,
+            smtpConfig: { host: config.host, port: config.port, user: config.auth.user }
+        });
+    } catch (err) {
+        res.status(500).json({
+            success: false,
+            error: err.message,
+            code: err.code,
+            smtpConfig: { host: config.host, port: config.port, user: config.auth.user }
+        });
+    }
+});
+
 // 404 handler
 app.use((req, res) => {
     res.status(404).json({ error: 'Route non trouvée' });
