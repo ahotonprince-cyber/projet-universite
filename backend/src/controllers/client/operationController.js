@@ -4,18 +4,17 @@ const operationController = {
 
     getOperations: async (req, res) => {
         try {
-            const limit = parseInt(req.query.limit) || 50;
+            const limit  = parseInt(req.query.limit)  || 20;
+            const page   = parseInt(req.query.page)   || 1;
+            const offset = (page - 1) * limit;
 
-            const operations = await OperationModel.findByUser(req.user.id, { limit });
+            const operations = await OperationModel.findByUser(req.user.id, { limit, offset });
 
-            // ✅ sécurisation
-            res.json({
-                operations: operations || []
-            });
+            res.json({ operations: operations || [] });
 
         } catch (error) {
-            console.error(error);
-            res.status(500).json({ error: 'Erreur chargement opérations' });
+            console.error('❌ getOperations client:', error.code, error.message);
+            res.status(500).json({ error: 'Erreur chargement opérations: ' + error.message });
         }
     },
 
