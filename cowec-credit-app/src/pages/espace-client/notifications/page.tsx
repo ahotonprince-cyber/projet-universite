@@ -5,7 +5,7 @@ interface Notification {
   id: number;
   titre: string;
   message: string;
-  date: string;
+  date_creation: string;
   lu: boolean;
   type: string;
 }
@@ -186,7 +186,7 @@ export default function NotificationsClientPage() {
     }
 
     return result.sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      (a, b) => new Date(b.date_creation).getTime() - new Date(a.date_creation).getTime()
     );
   }, [notifs, filter, search]);
 
@@ -300,7 +300,7 @@ export default function NotificationsClientPage() {
                 <p className="text-xs text-gray-500 mt-1">{n.message}</p>
 
                 <p className="text-xs text-gray-400 mt-2">
-                  {new Date(n.date).toLocaleDateString('fr-FR', {
+                  {new Date(n.date_creation).toLocaleDateString('fr-FR', {
                     day: '2-digit',
                     month: 'long',
                     year: 'numeric',
