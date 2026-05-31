@@ -3,19 +3,22 @@ const bcrypt = require('bcryptjs');
 
 class UserModel {
     static async create(userData) {
-        const { 
-            nom, 
-            prenom, 
-            email, 
-            telephone, 
-            password, 
-            role, 
-            adresse, 
-            profession, 
-            dateNaissance 
+        const {
+            nom,
+            prenom,
+            email,
+            telephone,
+            role,
+            adresse,
+            profession,
+            dateNaissance
         } = userData;
-        
-        const hashedPassword = await bcrypt.hash(password, 12);
+
+        // Accepter 'password' ou 'mot_de_passe' (robustesse frontend/backend)
+        const rawPassword = userData.password || userData.mot_de_passe;
+        if (!rawPassword) throw new Error('Mot de passe requis');
+
+        const hashedPassword = await bcrypt.hash(rawPassword, 12);
         
         // ✅ statut en_attente pour les clients, actif pour admin/agent
         const statut = role === 'client' ? 'en_attente' : 'actif';
