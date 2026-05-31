@@ -27,22 +27,28 @@ const userController = {
     
     create: async (req, res) => {
         try {
-            console.log('📥 create - Données reçues:', req.body);
-            const { email, telephone } = req.body;
+            const { email, telephone, nom, prenom } = req.body;
+            const password = req.body.password || req.body.mot_de_passe;
+
+            console.log('📥 create - email:', email, '| role:', req.body.role, '| password présent:', !!password);
+
+            if (!email)    return res.status(400).json({ error: 'Email requis' });
+            if (!password) return res.status(400).json({ error: 'Mot de passe requis' });
+            if (!nom && !prenom) return res.status(400).json({ error: 'Nom ou prénom requis' });
+
             const existingEmail = await UserModel.findByEmail(email);
             if (existingEmail) return res.status(409).json({ error: 'Email déjà utilisé' });
-            
+
             const existingPhone = await UserModel.findByTelephone(telephone);
             if (existingPhone) return res.status(409).json({ error: 'Téléphone déjà utilisé' });
-            
-            const userId = await UserModel.create(req.body);
+
+            const userId = await UserModel.create({ ...req.body, password });
             const user = await UserModel.findById(userId);
             console.log('✅ Utilisateur créé:', userId);
             res.status(201).json({ success: true, utilisateur: user });
         } catch (error) {
-            console.error('❌ create error:', error.message);
-            console.error('📚 Stack:', error.stack);
-            res.status(500).json({ error: 'Erreur création utilisateur: ' + error.message });
+            console.error('❌ create error:', error.code, error.message);
+            res.status(500).json({ error: 'Erreur création: ' + error.message, code: error.code });
         }
     },
     
