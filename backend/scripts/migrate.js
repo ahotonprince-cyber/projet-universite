@@ -25,6 +25,7 @@ async function migrate() {
         'migration_support_tickets.sql',
         'migration_statut_avant_blocage.sql',
         'migration_statut_utilisateur.sql',
+        'migration_telephone_length.sql',
     ];
 
     for (const file of files) {
