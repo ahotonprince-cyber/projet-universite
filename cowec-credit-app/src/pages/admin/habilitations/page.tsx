@@ -127,13 +127,13 @@ export default function HabilitationsPage({ initialRoleFilter = 'all' }: Habilit
       const method = editUser ? 'PUT' : 'POST';
 
       const body = editUser
-        ? { 
+        ? {
             role: form.role,
             adresse: form.adresse,
             profession: form.profession,
             dateNaissance: form.dateNaissance
           }
-        : form;
+        : { ...form, password: form.mot_de_passe };
 
       const res = await fetch(url, {
         method,
